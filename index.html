@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select ROI</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <!-- Custom CSS -->
+    <style>
+        /* Add your custom styles here */
+        .image-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px; /* Adjust max-width as needed */
+            margin: 0 auto;
+            border: 2px solid black;
+        }
+        #imageCanvas {
+            width: 100%; /* Ensure canvas width matches image container width */
+            height: auto;
+            display: block;
+        }
+        .selected-region {
+            position: absolute;
+            border: 2px solid green; /* Change the color of the selected region */
+            box-sizing: border-box;
+            pointer-events: none;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="my-4">Select Region of Interest</h1>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="imageFile">Select Image:</label>
+                <input type="file" class="form-control-file" id="imageFile" accept="image/*" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Upload Image</button>
+            <p id="noImageMessage" style="display: none;">Please choose a file.</p>
+        </form>
+    </div>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="image-container">
+                    <canvas id="imageCanvas"></canvas>
+                    <div id="regionContainer"></div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <h2>Selected Region Coordinates</h2>
+                <ul id="coordinatesList">
+                    <!-- Coordinates will be displayed here -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <!-- Custom JS -->
+    <script>
+        let imageLoaded = false;
+
+        // JavaScript code for image upload and region selection
+        document.getElementById('uploadForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const imageFile = document.getElementById('imageFile').files[0];
+            if (imageFile) {
+                document.getElementById('noImageMessage').style.display = 'none';
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    const image = new Image();
+                    image.src = e.target.result;
+                    image.onload = function() {
+                        const canvas = document.getElementById('imageCanvas');
+                        const ctx = canvas.getContext('2d');
+                        const aspectRatio = image.width / image.height;
+                        const maxWidth = canvas.parentElement.clientWidth;
+                        canvas.width = maxWidth;
+                        canvas.height = maxWidth / aspectRatio;
+                        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+                        // Store image reference in canvas
+                        canvas.image = image;
+                        imageLoaded = true;
+                        // Redraw all regions when the image loads
+                        redrawRegions(ctx);
+                    }
+                }
+
+                reader.readAsDataURL(imageFile);
+            } else {
+                document.getElementById('noImageMessage').style.display = 'block';
+            }
+        });
+
+        const imageContainer = document.querySelector('.image-container');
+        const coordinatesList = document.getElementById('coordinatesList');
+        const imageCanvas = document.getElementById('imageCanvas');
+        const ctx = imageCanvas.getContext('2d');
+        const regions = []; // Array to store region coordinates
+        let counter = 0;
+        let isDrawing = false;
+        let startX, startY;
+
+        imageCanvas.addEventListener('mousedown', function(e) {
+            if (!imageLoaded) return;
+            startX = e.offsetX;
+            startY = e.offsetY;
+            isDrawing = true;
+        });
+
+        imageCanvas.addEventListener('mousemove', function(e) {
+            if (!isDrawing || !imageLoaded) return;
+            redrawRegions(ctx); // Redraw all regions
+            const width = e.offsetX - startX;
+            const height = e.offsetY - startY;
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'; // Red color with transparency
+            ctx.fillRect(startX, startY, width, height); // Draw filled rectangle
+            ctx.strokeStyle = 'red'; // Red color for the outline
+            ctx.strokeRect(startX, startY, width, height); // Draw rectangle outline
+            ctx.fillStyle = 'black'; // Black color for the text
+            ctx.fillText(`Region ${counter + 1}`, startX + width/2 - 20, startY + height/2); // Add text with region number
+        });
+
+        imageCanvas.addEventListener('mouseup', function(e) {
+            if (!isDrawing || !imageLoaded) return;
+            const width = e.offsetX - startX;
+            const height = e.offsetY - startY;
+            isDrawing = false;
+            regions.push({ // Store region coordinates in the array
+                startX: startX,
+                startY: startY,
+                width: width,
+                height: height,
+                regionNumber: ++counter
+            });
+            const coordinates = document.createElement('li');
+            coordinates.textContent = `Region ${counter}: Left: ${startX}, Right: ${startX + width}, Top: ${startY}, Bottom: ${startY + height}`;
+            coordinatesList.appendChild(coordinates);
+        });
+
+        function redrawRegions(ctx) {
+            ctx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
+            ctx.drawImage(document.getElementById('imageCanvas').image, 0, 0, imageCanvas.width, imageCanvas.height);
+            ctx.font = '12px Arial'; // Set font for region number text
+            regions.forEach(region => {
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.2)'; // Red color with transparency
+                ctx.fillRect(region.startX, region.startY, region.width, region.height); // Draw filled rectangle
+                ctx.strokeStyle = 'red'; // Red color for the outline
+                ctx.strokeRect(region.startX, region.startY, region.width, region.height); // Draw rectangle outline
+                ctx.fillStyle = 'black'; // Black color for the text
+                ctx.fillText(`${region.regionNumber}`, region.startX + region.width/2 - 20, region.startY + region.height/2); // Add text with region number
+            });
+        }
+    </script>
+</body>
+</html>
